@@ -1,0 +1,7 @@
+[httpd]
+host = localhost
+port = 8080
+
+[amazon]
+client_id = amzn1.application-oa2-client.xxxxx
+client_secret = xxxxx
