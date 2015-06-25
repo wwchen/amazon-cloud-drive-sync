@@ -1,23 +1,13 @@
 #!/usr/bin/env python
-import server
+from acd_server import AmazonCloudDriveServer
 import time
-
-
-def wait_for_signin():
-    return 'ANJyNCEHbzhDzNGnLSuD'
-    while (server.get_code() == None):
-        time.sleep(2)
-    print "Got the code: " + server.get_code()
-
-
-def get_auth_token():
-    return;
 
 
 if __name__ == '__main__':
     print "Launching server app..."  # todo it's faked right now
-    # server.start()
+    server = AmazonCloudDriveServer('amazon.conf')
+    server.start()
     print "Go to this url: " + server.get_login_url()
     # somehow realize that the token is gotten
-    wait_for_signin()
-    get_auth_token()
+    #wait_for_signin()
+    #get_auth_token()
