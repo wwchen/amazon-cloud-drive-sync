@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import ConfigParser
-import urllib2
 from urllib import urlencode
 import requests
 import cherrypy
@@ -8,6 +7,7 @@ import json
 
 DEBUG = False
 CONFIG_KEY = "httpd"
+AUTHORIZE_TRY_COUNTS = 3
 
 # http://www.amazon.com/ap/oa?client_id=amzn1.application-oa2-client.5dab1a3e36b94fa18fd27c329f6d9591&scope=clouddrive%3Aread%20clouddrive%3Awrite&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fsignin&response_type=code
 
@@ -54,22 +54,28 @@ class AmazonCloudDriveServer:
     def signin(self, code, scope):
         self.log('scope: {}'.format(scope))
         self.log('code: {}'.format(code))
-        self._auth(code)
+        count = 0
+        while count < AUTHORIZE_TRY_COUNTS:
+            try:
+                self._auth(code)
+                break
+            except requests.HTTPError as e:
+                self.log('ERROR: Something went wrong while requesting access/refresh token')
+                self.log(e)
+                self.log('{} {}: {}'.format(e.response.status_code, e.response.reason, e.response.text))
+                count += 1
 
     def _auth(self, code):
         response = self._request_access_token(code)
-        if response.status_code == requests.codes.ok:
-            data = json.loads(response.text)
-            self._token_type = data['token_type']
-            self._expires_in = data['expires_in']
-            self._refresh_token = data['refresh_token']
-            self._access_token = data['access_token']
-            self.log('refresh token: {}'.format(self._refresh_token))
-            self.log('expires in: {}'.format(self._expires_in))
-            self.log('access token: {}'.format(self._access_token))
-        else:
-            self.log('Something went wrong while requesting access/refresh token')
-            self.log('{} {}: {}'.format(response.status_code, response.reason, response.text))
+        response.raise_for_status()
+        data = json.loads(response.text)
+        self._token_type = data['token_type']
+        self._expires_in = data['expires_in']
+        self._refresh_token = data['refresh_token']
+        self._access_token = data['access_token']
+        self.log('refresh token: {}'.format(self._refresh_token))
+        self.log('expires in: {}'.format(self._expires_in))
+        self.log('access token: {}'.format(self._access_token))
 
     def _request_access_token(self, code):
         params = {
