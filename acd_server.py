@@ -35,6 +35,11 @@ class AmazonCloudDriveServer:
         # stops the server
         pass
 
+    def get_authorization_token(self):
+        if self._access_token is None:
+            return None
+        return 'Bearer {}'.format(self._access_token)
+
     ####
 
     def _init_config(self, config_file):
@@ -58,11 +63,14 @@ class AmazonCloudDriveServer:
         while count < AUTHORIZE_TRY_COUNTS:
             try:
                 self._auth(code)
+                self.log(str(self._get_endpoints()))
                 break
             except requests.HTTPError as e:
                 self.log('ERROR: Something went wrong while requesting access/refresh token')
-                self.log(e)
+                self.log('Request url: {}'.format(e.request.url))
+                self.log('Request header: {}'.format(e.request.headers))
                 self.log('{} {}: {}'.format(e.response.status_code, e.response.reason, e.response.text))
+                self.log('====================')
                 count += 1
 
     def _auth(self, code):
@@ -77,6 +85,17 @@ class AmazonCloudDriveServer:
         self.log('expires in: {}'.format(self._expires_in))
         self.log('access token: {}'.format(self._access_token))
 
+    def _get_endpoints(self):
+        headers = {
+            'Authorization': self.get_authorization_token()
+        }
+        url = 'https://drive.amazonaws.com/drive/v1/account/endpoint'
+        response = requests.get(url, headers=headers, verify=True)
+        response.raise_for_status()
+        data = json.loads(response.text)
+        self._content_url = data['contentUrl']
+        self._metadata_url = data['metadataUrl']
+
     def _request_access_token(self, code):
         params = {
             'grant_type': 'authorization_code',
@@ -84,6 +103,20 @@ class AmazonCloudDriveServer:
             'client_id': self._client_id,
             'client_secret': self._client_secret,
             'redirect_uri': self._redirect_url
+        }
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+        url = 'https://api.amazon.com/auth/o2/token'
+        response = requests.post(url, data=params, headers=headers, verify=True)
+        return response
+
+    def _refresh_access_token(self, refresh_token):
+        params = {
+            'grant_type': 'refresh_token',
+            'refresh_token': refresh_token,
+            'client_id': self._client_id,
+            'client_secret': self._client_secret
         }
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded'

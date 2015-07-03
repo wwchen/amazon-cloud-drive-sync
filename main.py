@@ -10,4 +10,5 @@ if __name__ == '__main__':
     print "Go to this url: " + server.get_login_url()
     # somehow realize that the token is gotten
     #wait_for_signin()
-    #get_auth_token()
+    while auth_token is None:
+        auth_token = server.get_authorization_token()
