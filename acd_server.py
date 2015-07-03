@@ -2,7 +2,9 @@
 import ConfigParser
 import urllib2
 from urllib import urlencode
+import requests
 import cherrypy
+import json
 
 DEBUG = False
 CONFIG_KEY = "httpd"
@@ -41,7 +43,6 @@ class AmazonCloudDriveServer:
         self._host = config.get(CONFIG_KEY, 'host')
         self._port = config.get(CONFIG_KEY, 'port')
         self._redirect_url = "http://{}:{}/signin".format(self._host, self._port)
-        self._auth_redirect_url = "http://{}:{}/auth".format(self._host, self._port)
 
         self._client_id = config.get(CONFIG_KEY, 'client_id')
         self._client_secret = config.get(CONFIG_KEY, 'client_secret')
@@ -53,17 +54,22 @@ class AmazonCloudDriveServer:
     def signin(self, code, scope):
         self.log('scope: {}'.format(scope))
         self.log('code: {}'.format(code))
-        self.log(self._request_access_token(code))
+        self._auth(code)
 
-    @cherrypy.expose
-    def auth(self, token_type, expires_in, refresh_token, access_token):
-        self._token_type = token_type
-        self._expires_in = expires_in
-        self._refresh_token = refresh_token
-        self._access_token = access_token
-        self.log('refresh token: {}'.format(refresh_token))
-        self.log('expires in: {}'.format(expires_in))
-        self.log('access token: {}'.format(access_token))
+    def _auth(self, code):
+        response = self._request_access_token(code)
+        if response.status_code == requests.codes.ok:
+            data = json.loads(response.text)
+            self._token_type = data['token_type']
+            self._expires_in = data['expires_in']
+            self._refresh_token = data['refresh_token']
+            self._access_token = data['access_token']
+            self.log('refresh token: {}'.format(self._refresh_token))
+            self.log('expires in: {}'.format(self._expires_in))
+            self.log('access token: {}'.format(self._access_token))
+        else:
+            self.log('Something went wrong while requesting access/refresh token')
+            self.log('{} {}: {}'.format(response.status_code, response.reason, response.text))
 
     def _request_access_token(self, code):
         params = {
@@ -71,18 +77,14 @@ class AmazonCloudDriveServer:
             'code': code,
             'client_id': self._client_id,
             'client_secret': self._client_secret,
-            'redirect_uri': self._auth_redirect_url
+            'redirect_uri': self._redirect_url
         }
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded'
         }
         url = 'https://api.amazon.com/auth/o2/token'
-        try:
-            request = urllib2.Request(url, urlencode(params), headers)
-            response = urllib2.urlopen(request)
-            return response.read()
-        except urllib2.HTTPError as e:
-            print e.code, e.reason, e.read()
+        response = requests.post(url, data=params, headers=headers, verify=True)
+        return response
 
     def _get_login_url(self):
         params = {
