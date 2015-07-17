@@ -95,6 +95,7 @@ class AmazonCloudDriveServer:
         data = json.loads(response.text)
         self._content_url = data['contentUrl']
         self._metadata_url = data['metadataUrl']
+        return data
 
     def _request_access_token(self, code):
         params = {
